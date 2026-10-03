@@ -1,0 +1,6 @@
+id=naang_phone_bridge
+name=NAANG Phone Bridge
+version=0.1.0
+versionCode=1
+author=NAANG360
+description=Safe root-side bridge for ChatGPT phone tools
