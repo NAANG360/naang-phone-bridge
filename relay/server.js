@@ -34,4 +34,4 @@ server.on("upgrade",(req,socket)=>{
  let device="";let buf="";socket.on("data",chunk=>{buf+=chunk.toString();let i;while((i=buf.indexOf("\n"))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line)continue;try{const msg=JSON.parse(line);if(msg.type==="hello"){device=msg.device;if(device)devices.set(device,socket);continue}if(msg.id&&pending.has(msg.id)){const p=pending.get(msg.id);pending.delete(msg.id);clearTimeout(p.timer);p.resolve(msg)}}catch{}}});
  socket.on("close",()=>{if(device&&devices.get(device)===socket)devices.delete(device)});socket.on("error",()=>{if(device&&devices.get(device)===socket)devices.delete(device)});
 });
-server.listen(PORT,()=>console.log("relay listening on :"+PORT));
+server.listen(PORT,()=>console.log("NAANG RELAY v2 listening on :"+PORT));
