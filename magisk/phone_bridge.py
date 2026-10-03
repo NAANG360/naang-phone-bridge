@@ -47,20 +47,30 @@ def safe_path(v):
         raise ValueError("invalid path")
     return v
 
+def parse_current_activity(line):
+    m = re.search(r"(?:mCurrentFocus=|mResumedActivity:).*?\bu\d+\s+([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)/([^\s}]+)", line)
+    if not m:
+        return None
+    return {"package": m.group(1), "activity": m.group(2)}
+
 def current_activity():
     r = run(["dumpsys", "activity", "activities"], timeout=10)
     for line in r["stdout"].splitlines():
-        if "mResumedActivity:" in line or "mCurrentFocus=" in line:
-            return {"line": line.strip(), "raw": r["stdout"][-4096:]}
-    return {"line": None, "raw": r["stdout"][-4096:]}
+        parsed = parse_current_activity(line)
+        if parsed:
+            return parsed
+    return {"package": None, "activity": None}
 
-def screenshot():
+def screenshot(include_base64=False):
     p = subprocess.run(["screencap", "-p"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
     if p.returncode != 0:
         raise RuntimeError(p.stderr.decode("utf-8", "replace")[:4096] or "screencap failed")
     if len(p.stdout) > MAX_SCREENSHOT:
         raise ValueError("screenshot too large")
-    return {"mime": "image/png", "base64": base64.b64encode(p.stdout).decode("ascii"), "bytes": len(p.stdout)}
+    out = {"mime": "image/png", "bytes": len(p.stdout)}
+    if include_base64:
+        out["base64"] = base64.b64encode(p.stdout).decode("ascii")
+    return out
 
 def ui_dump():
     fd, path = tempfile.mkstemp(prefix="naang_ui_", suffix=".xml", dir="/data/local/tmp")
@@ -130,7 +140,10 @@ def call(method, p):
     if method == "ui.dump":
         return ui_dump()
     if method == "ui.screenshot":
-        return screenshot()
+        include_base64 = p.get("include_base64", False)
+        if not isinstance(include_base64, bool):
+            raise ValueError("invalid include_base64")
+        return screenshot(include_base64)
     if method == "fs.list":
         return run(["ls", "-la", safe_path(p.get("path"))])
     if method == "fs.read":
