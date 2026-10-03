@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "magisk/**"
+      - "META-INF/**"
       - "build_magisk_zip.sh"
       - ".github/workflows/magisk-module.yml"
   workflow_dispatch:
@@ -17,10 +18,24 @@ jobs:
         run: python3 -m py_compile magisk/phone_bridge.py
       - name: Shell syntax check
         run: sh -n magisk/service.sh
+      - name: Installer syntax check
+        run: sh -n META-INF/com/google/android/update-binary
       - name: Validate module metadata
         run: |
           test -s magisk/module.prop
           grep -q '^id=naang_phone_bridge$' magisk/module.prop
           grep -q '^version=' magisk/module.prop
+          test "$(cat META-INF/com/google/android/updater-script)" = "#MAGISK"
       - name: Build module zip
-        run: sh build_magisk_zip.sh
+        run: bash build_magisk_zip.sh
+      - name: Validate zip layout
+        run: |
+          unzip -l dist/naang-phone-bridge-magisk.zip
+          unzip -t dist/naang-phone-bridge-magisk.zip
+          test "$(unzip -Z1 dist/naang-phone-bridge-magisk.zip | grep -c '^module.prop$')" -eq 1
+          test "$(unzip -Z1 dist/naang-phone-bridge-magisk.zip | grep -c '^service.sh$')" -eq 1
+      - name: Upload flashable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: naang-phone-bridge-magisk
+          path: dist/naang-phone-bridge-magisk.zip
