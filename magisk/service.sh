@@ -35,7 +35,12 @@ fi
 export BRIDGE_HOST=127.0.0.1
 export BRIDGE_PORT=8765
 export BRIDGE_TOKEN_FILE="$TOKEN"
-chmod 700 "$MODDIR/phone_bridge.py"
+chmod 700 "$MODDIR/phone_bridge.py" "$MODDIR/../relay/device_client.py" 2>/dev/null || true
+
+RELAY_ENV="$STATE/relay.env"
+if [ -s "$RELAY_ENV" ]; then
+  log "relay config found; device client will start inside Termux namespace"
+fi
 
 while true; do
   TERMUX_PID="$(pidof com.termux 2>/dev/null | awk '{print $1}')"
@@ -46,7 +51,16 @@ while true; do
   fi
 
   log "using Termux mount namespace pid=$TERMUX_PID"
-  "$MAGISK" su --target "$TERMUX_PID" --shell /system/bin/sh -c     "export BRIDGE_HOST=127.0.0.1; export BRIDGE_PORT=8765; export BRIDGE_TOKEN_FILE='$TOKEN'; export PATH=/data/data/com.termux/files/usr/bin:/system/bin:/system/xbin; export LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so; exec /data/data/com.termux/files/usr/bin/python '$MODDIR/phone_bridge.py'"     >>"$LOG" 2>&1
+  if [ -s "$RELAY_ENV" ] && [ ! -f "$STATE/device_client.pid" ]; then
+    "$MAGISK" su --target "$TERMUX_PID" --shell /system/bin/sh -c \
+      "set -a; . '$RELAY_ENV'; set +a; export PATH=/data/data/com.termux/files/usr/bin:/system/bin:/system/xbin; export LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so; nohup /data/data/com.termux/files/usr/bin/python '$MODDIR/../relay/device_client.py' >>'$LOG' 2>&1 & echo \\$! >'$STATE/device_client.pid'" \
+      >>"$LOG" 2>&1
+    log "started relay device client"
+  fi
+
+  "$MAGISK" su --target "$TERMUX_PID" --shell /system/bin/sh -c \
+    "export BRIDGE_HOST=127.0.0.1; export BRIDGE_PORT=8765; export BRIDGE_TOKEN_FILE='$TOKEN'; export PATH=/data/data/com.termux/files/usr/bin:/system/bin:/system/xbin; export LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so; exec /data/data/com.termux/files/usr/bin/python '$MODDIR/phone_bridge.py'" \
+    >>"$LOG" 2>&1
   rc=$?
   log "bridge exited rc=$rc; retrying in 5s"
   sleep 5
