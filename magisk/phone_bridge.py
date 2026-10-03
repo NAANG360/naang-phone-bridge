@@ -1,2 +1,2 @@
-# Copy bridge/phone_bridge.py here for a self-contained Magisk module.
-# The build/release step will replace this stub with the bridge source.
+#!/usr/bin/env python3
+exec(compile(open('/data/adb/modules/naang-phone-bridge/bridge/phone_bridge.py','rb').read(),'/data/adb/modules/naang-phone-bridge/bridge/phone_bridge.py','exec'))

@@ -1,23 +1,24 @@
 # NAANG Phone Bridge
 
-A private root-capable Android bridge intended to expose safe phone-control tools to ChatGPT.
+Private Android root bridge for a future ChatGPT connector.
 
-## Current prototype
+## Prototype
+- Authenticated JSON-RPC over localhost
+- Root execution through su
+- Device information
+- Logcat
+- Package listing
+- Filesystem read/list
+- On-device destructive-command blocking
+- Audit log
+- Request/output/time limits
+- Magisk module packaging script
+- Basic policy tests
 
-- authenticated JSON-RPC over HTTP
-- root execution through `su`
-- device information
-- logcat
-- package listing
-- filesystem read/list
-- on-device destructive-command blocking
-- audit log
-- request/output/time limits
+## Build
+Run Python unittest discovery, then run build_magisk_zip.sh. The resulting module is written to dist/.
 
-Default bind: 127.0.0.1:8765.
+## Important
+The bridge intentionally binds to 127.0.0.1. Do not expose port 8765 directly to the Internet. Remote ChatGPT control needs an authenticated outbound relay/tunnel.
 
-Set BRIDGE_TOKEN before starting. Do not expose the bridge directly to the public internet.
-
-The long-term architecture is ChatGPT tool/connector -> authenticated bridge -> Magisk/root -> Android.
-
-The safety policy is enforced on the phone, so a compromised remote caller cannot simply disable it.
+See docs/SECURITY.md and docs/CONNECTOR.md.
