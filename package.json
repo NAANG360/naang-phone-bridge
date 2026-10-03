@@ -1,0 +1,15 @@
+{
+  "name": "naang-phone-bridge",
+  "private": true,
+  "version": "0.2.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "mcp-handler": "2.2.0",
+    "next": "latest",
+    "zod": "3.25.76"
+  }
+}
