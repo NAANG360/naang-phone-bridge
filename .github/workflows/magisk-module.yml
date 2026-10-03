@@ -1,0 +1,26 @@
+name: Magisk Module Validate
+
+on:
+  push:
+    paths:
+      - "magisk/**"
+      - "build_magisk_zip.sh"
+      - ".github/workflows/magisk-module.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax check
+        run: python3 -m py_compile magisk/phone_bridge.py
+      - name: Shell syntax check
+        run: sh -n magisk/service.sh
+      - name: Validate module metadata
+        run: |
+          test -s magisk/module.prop
+          grep -q '^id=naang_phone_bridge$' magisk/module.prop
+          grep -q '^version=' magisk/module.prop
+      - name: Build module zip
+        run: sh build_magisk_zip.sh
