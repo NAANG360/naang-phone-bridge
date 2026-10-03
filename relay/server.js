@@ -1,7 +1,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 
-const PORT=process.env.PORT||8787;
+const PORT=8787;
 const ADMIN_TOKEN=process.env.ADMIN_TOKEN;
 const DEVICE_TOKEN=process.env.DEVICE_TOKEN;
 if(!ADMIN_TOKEN||!DEVICE_TOKEN) throw new Error("ADMIN_TOKEN and DEVICE_TOKEN are required");
