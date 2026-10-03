@@ -73,6 +73,56 @@ server.registerTool("stop_app", {
   inputSchema: { package: packageName }
 }, async ({ package: pkg }) => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("app.stop", { package: pkg }), null, 2) }] }));
 
+
+server.registerTool("current_app", {
+  description: "Read the current foreground Android package and activity.",
+  inputSchema: {}
+}, async () => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("app.current"), null, 2) }] }));
+
+server.registerTool("ui_tap", {
+  description: "Tap a fixed screen coordinate on the Android device.",
+  inputSchema: { x: z.number().int().min(0).max(10000), y: z.number().int().min(0).max(10000) }
+}, async ({ x, y }) => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.tap", { x, y }), null, 2) }] }));
+
+server.registerTool("ui_swipe", {
+  description: "Swipe between two screen coordinates.",
+  inputSchema: {
+    x1: z.number().int().min(0).max(10000), y1: z.number().int().min(0).max(10000),
+    x2: z.number().int().min(0).max(10000), y2: z.number().int().min(0).max(10000),
+    duration_ms: z.number().int().min(1).max(10000).default(300)
+  }
+}, async (p) => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.swipe", p), null, 2) }] }));
+
+server.registerTool("ui_keyevent", {
+  description: "Send a bounded Android key event.",
+  inputSchema: { keycode: z.number().int().min(0).max(300) }
+}, async ({ keycode }) => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.keyevent", { keycode }), null, 2) }] }));
+
+server.registerTool("ui_back", { description: "Press Android Back.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.back"), null, 2) }] }));
+server.registerTool("ui_home", { description: "Press Android Home.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.home"), null, 2) }] }));
+server.registerTool("ui_recents", { description: "Open Android Recents.", inputSchema: {} }, async () => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.recents"), null, 2) }] }));
+
+server.registerTool("ui_text", {
+  description: "Type bounded text using Android's input interface.",
+  inputSchema: { text: z.string().max(4096) }
+}, async ({ text }) => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.text", { text }), null, 2) }] }));
+
+server.registerTool("ui_dump", {
+  description: "Read the Android UI accessibility hierarchy as XML.",
+  inputSchema: {}
+}, async () => ({ content: [{ type: "text", text: JSON.stringify(await callPhone("ui.dump"), null, 2) }] }));
+
+server.registerTool("ui_screenshot", {
+  description: "Capture the Android screen. Set include_base64 only when an image payload is needed.",
+  inputSchema: { include_base64: z.boolean().default(false) }
+}, async ({ include_base64 }) => {
+  const result = await callPhone("ui.screenshot", { include_base64 });
+  if (include_base64 && result.base64) {
+    return { content: [{ type: "image", data: result.base64, mimeType: result.mime || "image/png" }] };
+  }
+  return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+});
+
 server.registerTool("test_policy", {
   description: "Ask the phone bridge whether a command matches its local safety policy. This does not execute it.",
   inputSchema: { command: z.string().min(1).max(8192) }
