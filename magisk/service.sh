@@ -30,7 +30,6 @@ if [ -z "$PYTHON" ]; then
     /data/data/com.termux/files/usr/bin/python \
     /data/data/com.termux/files/usr/bin/python3 \
     /data/data/com.termux/files/usr/bin/python3.12 \
-    /data/data/com.termux/files/usr/usr/bin/python3 \
     /data/data/com.termux/files/usr/bin/python3.13 \
     /data/data/com.termux/files/usr/bin/python3.14; do
     if [ -x "$p" ]; then PYTHON="$p"; break; fi
@@ -50,8 +49,12 @@ export BRIDGE_TOKEN_FILE="$TOKEN"
 
 log "starting bridge with $PYTHON"
 while true; do
-  "$PYTHON" "$MODDIR/phone_bridge.py" >>"$LOG" 2>&1
+  "$PYTHON" "$MODDIR/phone_bridge.py" >>"$LOG" 2>&1 &
+  PID=$!
+  echo "$PID" > "$STATE/pid"
+  wait "$PID"
   rc=$?
+  rm -f "$STATE/pid"
   log "bridge exited rc=$rc; restarting in 5s"
   sleep 5
 done
