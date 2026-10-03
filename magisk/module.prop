@@ -1,6 +1,6 @@
 id=naang_phone_bridge
 name=NAANG Phone Bridge
-version=0.3.5
-versionCode=35
+version=0.3.6
+versionCode=36
 author=NAANG360
 description=Local Magisk-side Android bridge for typed phone operations, app control, UI input and diagnostics
