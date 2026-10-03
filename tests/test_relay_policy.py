@@ -1,6 +1,6 @@
 import unittest
 
-from relay.server import is_allowed_method
+from relay.policy import is_allowed_method
 
 
 class RelayPolicyTests(unittest.TestCase):
