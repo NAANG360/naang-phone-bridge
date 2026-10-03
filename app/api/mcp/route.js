@@ -110,6 +110,63 @@ const handler = createMcpHandler(
     );
 
     server.tool(
+      "current_app",
+      "Read the currently focused Android app.",
+      {},
+      async () => textResult(await callPhone("app.current")),
+    );
+
+    server.tool(
+      "ui_tap",
+      "Tap a coordinate on the Android screen.",
+      { x: z.number().finite(), y: z.number().finite() },
+      async ({ x, y }) => textResult(await callPhone("ui.tap", { x, y })),
+    );
+
+    server.tool(
+      "ui_swipe",
+      "Swipe between two Android screen coordinates.",
+      {
+        x1: z.number().finite(), y1: z.number().finite(),
+        x2: z.number().finite(), y2: z.number().finite(),
+        duration_ms: z.number().int().min(1).max(10000).default(300),
+      },
+      async (params) => textResult(await callPhone("ui.swipe", params)),
+    );
+
+    server.tool(
+      "ui_keyevent",
+      "Send a fixed Android key event.",
+      { keycode: z.number().int().min(0).max(300) },
+      async ({ keycode }) => textResult(await callPhone("ui.keyevent", { keycode })),
+    );
+
+    server.tool("ui_back", "Press Android Back.", {}, async () => textResult(await callPhone("ui.back")));
+    server.tool("ui_home", "Press Android Home.", {}, async () => textResult(await callPhone("ui.home")));
+    server.tool("ui_recents", "Open Android Recents.", {}, async () => textResult(await callPhone("ui.recents")));
+
+    server.tool(
+      "ui_text",
+      "Enter text through the phone bridge's fixed Android text-input operation.",
+      { text: z.string().max(4096) },
+      async ({ text }) => textResult(await callPhone("ui.text", { text })),
+    );
+
+    server.tool(
+      "ui_dump",
+      "Dump the current Android UI hierarchy.",
+      {},
+      async () => textResult(await callPhone("ui.dump")),
+    );
+
+    server.tool(
+      "ui_screenshot",
+      "Capture an Android screenshot; returns metadata by default.",
+      { include_base64: z.boolean().default(false) },
+      async ({ include_base64 }) => textResult(await callPhone("ui.screenshot", { include_base64 })),
+    );
+
+    server.tool(
       "test_policy",
       "Check the phone bridge policy for a command without executing it.",
       { command: z.string().min(1).max(8192) },
