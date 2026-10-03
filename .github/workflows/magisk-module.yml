@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Python syntax check
-        run: python3 -m py_compile magisk/phone_bridge.py
+        run: python3 -m py_compile magisk/phone_bridge.py relay/device_client.py relay/policy.py tests/test_phone_bridge.py tests/test_device_client.py tests/test_relay_policy.py
       - name: Shell syntax check
         run: sh -n magisk/service.sh
       - name: Installer syntax check
