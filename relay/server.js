@@ -6,6 +6,13 @@ const ADMIN_TOKEN=process.env.ADMIN_TOKEN;
 const DEVICE_TOKEN=process.env.DEVICE_TOKEN;
 if(!ADMIN_TOKEN||!DEVICE_TOKEN) throw new Error("ADMIN_TOKEN and DEVICE_TOKEN are required");
 const devices=new Map(); const pending=new Map();
+const ALLOWED_METHODS=new Set([
+  "bridge.status","device.info","packages.list","process.list","system.logcat",
+  "app.launch","app.stop","app.current",
+  "ui.tap","ui.swipe","ui.keyevent","ui.back","ui.home","ui.recents","ui.text","ui.dump","ui.screenshot",
+  "fs.list","fs.read","policy.test"
+]);
+const isAllowedMethod=(method)=>typeof method==="string"&&ALLOWED_METHODS.has(method);
 const json=(res,status,obj)=>{const b=JSON.stringify(obj);res.writeHead(status,{"content-type":"application/json","content-length":Buffer.byteLength(b)});res.end(b)};
 const auth=(req,token)=>req.headers.authorization==="Bearer "+token;
 function id(){return crypto.randomBytes(16).toString("hex")}
@@ -19,7 +26,7 @@ const server=http.createServer((req,res)=>{
  if(req.method!=="POST") return json(res,405,{error:"method not allowed"});
  if(!auth(req,ADMIN_TOKEN)) return json(res,401,{error:"unauthorized"});
  let body=""; req.on("data",c=>{body+=c;if(body.length>65536) req.destroy()});
- req.on("end",async()=>{try{const x=JSON.parse(body);if(x.action==="device.call"){if(typeof x.device!=="string"||typeof x.method!=="string")return json(res,400,{error:"invalid request"});return json(res,200,{ok:true,result:await sendDevice(x.device,{jsonrpc:"2.0",method:x.method,params:x.params||{}})});}return json(res,400,{error:"unknown action"})}catch(e){return json(res,502,{error:e.message})}});
+ req.on("end",async()=>{try{const x=JSON.parse(body);if(x.action==="device.call"){if(typeof x.device!=="string"||!isAllowedMethod(x.method))return json(res,400,{error:"invalid request"});return json(res,200,{ok:true,result:await sendDevice(x.device,{jsonrpc:"2.0",method:x.method,params:x.params||{}})});}return json(res,400,{error:"unknown action"})}catch(e){return json(res,502,{error:e.message})}});
 });
 server.on("upgrade",(req,socket)=>{
  if(req.url!=="/device"||req.headers.authorization!=="Bearer "+DEVICE_TOKEN)return socket.destroy();
