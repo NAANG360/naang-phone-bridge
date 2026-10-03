@@ -1,0 +1,18 @@
+{
+  "name": "naang-phone-bridge",
+  "protocol": "json-rpc-2.0",
+  "transport": "future-outbound-relay",
+  "tools": [
+    "device.info",
+    "policy.test",
+    "system.logcat",
+    "packages.list",
+    "process.list",
+    "fs.read",
+    "fs.list",
+    "app.launch",
+    "app.stop"
+  ],
+  "dangerous_capability": "shell.exec",
+  "dangerous_capability_requires": ["explicit-user-intent", "device-policy"]
+}
