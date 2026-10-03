@@ -6,17 +6,21 @@ OUT="$ROOT/dist"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-mkdir -p "$OUT" "$TMP/naang-phone-bridge"
-cp "$ROOT/magisk/module.prop" "$TMP/naang-phone-bridge/"
-cp "$ROOT/magisk/service.sh" "$TMP/naang-phone-bridge/"
-cp "$ROOT/magisk/phone_bridge.py" "$TMP/naang-phone-bridge/"
-cp "$ROOT/magisk/README.md" "$TMP/naang-phone-bridge/"
+mkdir -p "$OUT" "$TMP/META-INF/com/google/android"
 
-chmod 700 "$TMP/naang-phone-bridge/service.sh" "$TMP/naang-phone-bridge/phone_bridge.py"
+cp "$ROOT/magisk/module.prop" "$TMP/"
+cp "$ROOT/magisk/service.sh" "$TMP/"
+cp "$ROOT/magisk/phone_bridge.py" "$TMP/"
+cp "$ROOT/magisk/README.md" "$TMP/"
+cp "$ROOT/META-INF/com/google/android/update-binary" "$TMP/META-INF/com/google/android/"
+cp "$ROOT/META-INF/com/google/android/updater-script" "$TMP/META-INF/com/google/android/"
 
+chmod 700 "$TMP/service.sh" "$TMP/phone_bridge.py" "$TMP/META-INF/com/google/android/update-binary"
+
+rm -f "$OUT/naang-phone-bridge-magisk.zip"
 (
-  cd "$TMP/naang-phone-bridge"
-  zip -qr "$OUT/naang-phone-bridge-magisk.zip" .
+  cd "$TMP"
+  zip -9qr "$OUT/naang-phone-bridge-magisk.zip" .
 )
 
 echo "$OUT/naang-phone-bridge-magisk.zip"
