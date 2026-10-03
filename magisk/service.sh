@@ -35,7 +35,7 @@ fi
 export BRIDGE_HOST=127.0.0.1
 export BRIDGE_PORT=8765
 export BRIDGE_TOKEN_FILE="$TOKEN"
-chmod 700 "$MODDIR/phone_bridge.py" "$MODDIR/../relay/device_client.py" 2>/dev/null || true
+chmod 700 "$MODDIR/phone_bridge.py" "$MODDIR/device_client.py" 2>/dev/null || true
 
 RELAY_ENV="$STATE/relay.env"
 if [ -s "$RELAY_ENV" ]; then
