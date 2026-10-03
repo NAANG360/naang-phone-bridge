@@ -7,11 +7,11 @@ import socket
 import ssl
 import time
 
-RELAY_HOST = os.environ["RELAY_HOST"]
+RELAY_HOST = os.getenv("RELAY_HOST")
 RELAY_PORT = int(os.getenv("RELAY_PORT", "443"))
 RELAY_PATH = os.getenv("RELAY_PATH", "/device")
-DEVICE_TOKEN = os.environ["DEVICE_TOKEN"]
-DEVICE_ID = os.environ["DEVICE_ID"]
+DEVICE_TOKEN = os.getenv("DEVICE_TOKEN")
+DEVICE_ID = os.getenv("DEVICE_ID")
 BRIDGE_HOST = os.getenv("BRIDGE_HOST", "127.0.0.1")
 BRIDGE_PORT = int(os.getenv("BRIDGE_PORT", "8765"))
 BRIDGE_TOKEN_FILE = os.getenv("BRIDGE_TOKEN_FILE", "/data/adb/naang_phone_bridge/token")
@@ -59,6 +59,8 @@ def call_local_bridge(method, params):
 
 
 def connect_relay():
+    if not RELAY_HOST or not DEVICE_TOKEN or not DEVICE_ID:
+        raise RuntimeError("RELAY_HOST, DEVICE_TOKEN and DEVICE_ID are required")
     raw = socket.create_connection((RELAY_HOST, RELAY_PORT), timeout=20)
     s = ssl.create_default_context().wrap_socket(raw, server_hostname=RELAY_HOST)
     request = (
