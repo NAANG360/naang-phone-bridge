@@ -53,7 +53,7 @@ while true; do
   log "using Termux mount namespace pid=$TERMUX_PID"
   if [ -s "$RELAY_ENV" ] && [ ! -f "$STATE/device_client.pid" ]; then
     "$MAGISK" su --target "$TERMUX_PID" --shell /system/bin/sh -c \
-      "set -a; . '$RELAY_ENV'; set +a; export PATH=/data/data/com.termux/files/usr/bin:/system/bin:/system/xbin; export LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so; nohup /data/data/com.termux/files/usr/bin/python '$MODDIR/../relay/device_client.py' >>'$LOG' 2>&1 & echo \\$! >'$STATE/device_client.pid'" \
+      "set -a; . '$RELAY_ENV'; set +a; export PATH=/data/data/com.termux/files/usr/bin:/system/bin:/system/xbin; export LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so; nohup /data/data/com.termux/files/usr/bin/python '$MODDIR/device_client.py' >>'$LOG' 2>&1 & echo \\$! >'$STATE/device_client.pid'" \
       >>"$LOG" 2>&1
     log "started relay device client"
   fi
