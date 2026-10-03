@@ -7,9 +7,7 @@ TOKEN="$STATE/token"
 mkdir -p "$STATE" /data/local/tmp
 chmod 700 "$STATE" "$MODDIR"
 
-log() {
-  echo "[naang] $*" >> "$LOG"
-}
+log() { echo "[naang] $*" >> "$LOG"; }
 
 log "service start"
 
@@ -20,41 +18,36 @@ if [ ! -s "$TOKEN" ]; then
   log "generated device token"
 fi
 
-resetprop -w sys.boot_completed 0 >/dev/null 2>&1 || {
-  while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done
-}
+while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done
 
-PYTHON="${NAANG_PYTHON:-}"
-if [ -z "$PYTHON" ]; then
-  for p in \
-    /data/data/com.termux/files/usr/bin/python \
-    /data/data/com.termux/files/usr/bin/python3 \
-    /data/data/com.termux/files/usr/bin/python3.12 \
-    /data/data/com.termux/files/usr/bin/python3.13 \
-    /data/data/com.termux/files/usr/bin/python3.14; do
-    if [ -x "$p" ]; then PYTHON="$p"; break; fi
+MAGISK="$(command -v magisk 2>/dev/null)"
+if [ -z "$MAGISK" ] || [ ! -x "$MAGISK" ]; then
+  for p in /sbin/magisk /debug_ramdisk/magisk /data/adb/magisk/magisk; do
+    if [ -x "$p" ]; then MAGISK="$p"; break; fi
   done
 fi
 
-if [ -z "$PYTHON" ] || [ ! -x "$PYTHON" ]; then
-  log "ERROR: no Termux Python found"
-  log "Install Python in Termux with: pkg install python"
+if [ -z "$MAGISK" ] || [ ! -x "$MAGISK" ]; then
+  log "ERROR: Magisk binary not found"
   exit 0
 fi
 
-chmod 700 "$MODDIR/phone_bridge.py"
 export BRIDGE_HOST=127.0.0.1
 export BRIDGE_PORT=8765
 export BRIDGE_TOKEN_FILE="$TOKEN"
+chmod 700 "$MODDIR/phone_bridge.py"
 
-log "starting bridge with $PYTHON"
 while true; do
-  "$PYTHON" "$MODDIR/phone_bridge.py" >>"$LOG" 2>&1 &
-  PID=$!
-  echo "$PID" > "$STATE/pid"
-  wait "$PID"
+  TERMUX_PID="$(pidof com.termux 2>/dev/null | awk '{print $1}')"
+  if [ -z "$TERMUX_PID" ]; then
+    log "Termux process not running; open Termux once, then bridge will start"
+    sleep 5
+    continue
+  fi
+
+  log "using Termux mount namespace pid=$TERMUX_PID"
+  "$MAGISK" su --target "$TERMUX_PID" --shell /system/bin/sh -c     "export BRIDGE_HOST=127.0.0.1; export BRIDGE_PORT=8765; export BRIDGE_TOKEN_FILE='$TOKEN'; export PATH=/data/data/com.termux/files/usr/bin:/system/bin:/system/xbin; export LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so; exec /data/data/com.termux/files/usr/bin/python '$MODDIR/phone_bridge.py'"     >>"$LOG" 2>&1
   rc=$?
-  rm -f "$STATE/pid"
-  log "bridge exited rc=$rc; restarting in 5s"
+  log "bridge exited rc=$rc; retrying in 5s"
   sleep 5
 done
