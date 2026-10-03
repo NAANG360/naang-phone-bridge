@@ -17,6 +17,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      - name: Prepare Android SDK
+        working-directory: .
+        run: |
+          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: gradle --no-daemon assembleDebug
