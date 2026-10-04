@@ -2,11 +2,18 @@ export const runtime = "nodejs";
 
 import { z } from "zod";
 import { createMcpHandler } from "mcp-handler";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const MCP_TOKEN = process.env.MCP_TOKEN;
 const RELAY_URL = process.env.RELAY_URL;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const DEVICE_ID = process.env.DEVICE_ID;
+const AUTH0_DOMAIN = (process.env.AUTH0_DOMAIN || "").replace(/\/$/, "");
+const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE || "https://naang-phone-bridge.vercel.app";
+const AUTH0_ISSUER = AUTH0_DOMAIN ? "https://" + AUTH0_DOMAIN + "/" : "";
+const AUTH0_JWKS = AUTH0_DOMAIN
+  ? createRemoteJWKSet(new URL("https://" + AUTH0_DOMAIN + "/.well-known/jwks.json"))
+  : null;
 
 async function callPhone(method, params = {}) {
   if (!RELAY_URL || !ADMIN_TOKEN || !DEVICE_ID) {
@@ -271,13 +278,51 @@ const handler = createMcpHandler((server) => {
 });
 
 async function authorized(request) {
-  if (!MCP_TOKEN) return false;
-  return request.headers.get("authorization") === "Bearer " + MCP_TOKEN;
+  const authorization = request.headers.get("authorization") || "";
+
+  // Keep the existing static token working for local/curl testing.
+  if (MCP_TOKEN && authorization === "Bearer " + MCP_TOKEN) {
+    return true;
+  }
+
+  // ChatGPT uses OAuth Bearer tokens. Verify Auth0-issued JWTs.
+  if (!AUTH0_DOMAIN || !AUTH0_JWKS || !authorization.startsWith("Bearer ")) {
+    return false;
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+  if (!token) return false;
+
+  try {
+    const { payload } = await jwtVerify(token, AUTH0_JWKS, {
+      issuer: AUTH0_ISSUER,
+      audience: AUTH0_AUDIENCE,
+    });
+
+    const scopeText = typeof payload.scope === "string" ? payload.scope : "";
+    const permissions = Array.isArray(payload.permissions) ? payload.permissions : [];
+    return (
+      scopeText.split(/\s+/).includes("phone:read") ||
+      scopeText.split(/\s+/).includes("phone:control") ||
+      permissions.includes("phone:read") ||
+      permissions.includes("phone:control")
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function guarded(request) {
   if (!(await authorized(request))) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+    const metadata =
+      "https://naang-phone-bridge.vercel.app/.well-known/oauth-protected-resource";
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: {
+        "content-type": "application/json",
+        "WWW-Authenticate": 'Bearer resource_metadata="' + metadata + '", scope="phone:read phone:control"',
+      },
+    });
   }
   return handler(request);
 }
