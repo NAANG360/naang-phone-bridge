@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "magisk/**"
+      - "relay/device_client.py"
       - "META-INF/**"
       - "build_magisk_zip.sh"
       - ".github/workflows/magisk-module.yml"
