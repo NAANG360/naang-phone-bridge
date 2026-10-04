@@ -2,16 +2,19 @@ import { GET as apiGet, POST as apiPost, DELETE as apiDelete } from "../api/mcp/
 
 const MCP_TOKEN = process.env.MCP_TOKEN;
 
-function authorizedByUrl(request) {
+function authorized(request) {
   if (!MCP_TOKEN) return false;
-  const key =
-    new URL(request.url).searchParams.get("key") ||
-    new URL(request.url).searchParams.get("token");
+
+  const auth = request.headers.get("authorization");
+  if (auth === "Bearer " + MCP_TOKEN) return true;
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get("key") || url.searchParams.get("token");
   return key === MCP_TOKEN;
 }
 
 async function forward(request, handler) {
-  if (!authorizedByUrl(request)) {
+  if (!authorized(request)) {
     return new Response("Not Found", { status: 404 });
   }
 
