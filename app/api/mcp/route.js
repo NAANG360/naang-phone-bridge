@@ -41,142 +41,232 @@ function textResult(value) {
   };
 }
 
-const handler = createMcpHandler(
-  (server) => {
-    server.tool(
-      "device_info",
-      "Read Android device information.",
-      {},
-      async () => textResult(await callPhone("device.info")),
-    );
+const packageName = z
+  .string()
+  .regex(/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/);
 
-    server.tool(
-      "list_packages",
-      "List installed Android packages.",
-      {},
-      async () => textResult(await callPhone("packages.list")),
-    );
+const handler = createMcpHandler((server) => {
+  server.registerTool(
+    "device_info",
+    {
+      title: "Device info",
+      description: "Read Android device information.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("device.info")),
+  );
 
-    server.tool(
-      "list_processes",
-      "List Android processes.",
-      {},
-      async () => textResult(await callPhone("process.list")),
-    );
+  server.registerTool(
+    "list_packages",
+    {
+      title: "List packages",
+      description: "List installed Android packages.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("packages.list")),
+  );
 
-    server.tool(
-      "read_logcat",
-      "Read recent Android logcat output.",
-      { lines: z.number().int().min(1).max(2000).default(200) },
-      async ({ lines }) => textResult(await callPhone("system.logcat", { lines })),
-    );
+  server.registerTool(
+    "list_processes",
+    {
+      title: "List processes",
+      description: "List Android processes.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("process.list")),
+  );
 
-    server.tool(
-      "list_directory",
-      "List a directory in the phone bridge's permitted filesystem locations.",
-      { path: z.string().min(1).max(2048) },
-      async ({ path }) => textResult(await callPhone("fs.list", { path })),
-    );
+  server.registerTool(
+    "read_logcat",
+    {
+      title: "Read logcat",
+      description: "Read recent Android logcat output.",
+      inputSchema: z.object({
+        lines: z.number().int().min(1).max(2000).default(200),
+      }),
+    },
+    async ({ lines }) =>
+      textResult(await callPhone("system.logcat", { lines })),
+  );
 
-    server.tool(
-      "read_file",
-      "Read a file in the phone bridge's permitted filesystem locations.",
-      {
+  server.registerTool(
+    "list_directory",
+    {
+      title: "List directory",
+      description: "List a directory in the phone bridge's permitted filesystem locations.",
+      inputSchema: z.object({
+        path: z.string().min(1).max(2048),
+      }),
+    },
+    async ({ path }) => textResult(await callPhone("fs.list", { path })),
+  );
+
+  server.registerTool(
+    "read_file",
+    {
+      title: "Read file",
+      description: "Read a file in the phone bridge's permitted filesystem locations.",
+      inputSchema: z.object({
         path: z.string().min(1).max(2048),
         max_bytes: z.number().int().min(1).max(524288).default(65536),
-      },
-      async ({ path, max_bytes }) =>
-        textResult(await callPhone("fs.read", { path, max_bytes })),
-    );
+      }),
+    },
+    async ({ path, max_bytes }) =>
+      textResult(await callPhone("fs.read", { path, max_bytes })),
+  );
 
-    const packageName = z
-      .string()
-      .regex(/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/);
+  server.registerTool(
+    "launch_app",
+    {
+      title: "Launch app",
+      description: "Launch an Android app by package name.",
+      inputSchema: z.object({ package: packageName }),
+    },
+    async ({ package: pkg }) =>
+      textResult(await callPhone("app.launch", { package: pkg })),
+  );
 
-    server.tool(
-      "launch_app",
-      "Launch an Android app by package name.",
-      { package: packageName },
-      async ({ package: pkg }) =>
-        textResult(await callPhone("app.launch", { package: pkg })),
-    );
+  server.registerTool(
+    "stop_app",
+    {
+      title: "Stop app",
+      description: "Stop an Android app by package name.",
+      inputSchema: z.object({ package: packageName }),
+    },
+    async ({ package: pkg }) =>
+      textResult(await callPhone("app.stop", { package: pkg })),
+  );
 
-    server.tool(
-      "stop_app",
-      "Stop an Android app by package name.",
-      { package: packageName },
-      async ({ package: pkg }) =>
-        textResult(await callPhone("app.stop", { package: pkg })),
-    );
+  server.registerTool(
+    "current_app",
+    {
+      title: "Current app",
+      description: "Read the currently focused Android app.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("app.current")),
+  );
 
-    server.tool(
-      "current_app",
-      "Read the currently focused Android app.",
-      {},
-      async () => textResult(await callPhone("app.current")),
-    );
+  server.registerTool(
+    "ui_tap",
+    {
+      title: "UI tap",
+      description: "Tap a coordinate on the Android screen.",
+      inputSchema: z.object({
+        x: z.number().finite(),
+        y: z.number().finite(),
+      }),
+    },
+    async ({ x, y }) => textResult(await callPhone("ui.tap", { x, y })),
+  );
 
-    server.tool(
-      "ui_tap",
-      "Tap a coordinate on the Android screen.",
-      { x: z.number().finite(), y: z.number().finite() },
-      async ({ x, y }) => textResult(await callPhone("ui.tap", { x, y })),
-    );
-
-    server.tool(
-      "ui_swipe",
-      "Swipe between two Android screen coordinates.",
-      {
-        x1: z.number().finite(), y1: z.number().finite(),
-        x2: z.number().finite(), y2: z.number().finite(),
+  server.registerTool(
+    "ui_swipe",
+    {
+      title: "UI swipe",
+      description: "Swipe between two Android screen coordinates.",
+      inputSchema: z.object({
+        x1: z.number().finite(),
+        y1: z.number().finite(),
+        x2: z.number().finite(),
+        y2: z.number().finite(),
         duration_ms: z.number().int().min(1).max(10000).default(300),
-      },
-      async (params) => textResult(await callPhone("ui.swipe", params)),
-    );
+      }),
+    },
+    async (params) => textResult(await callPhone("ui.swipe", params)),
+  );
 
-    server.tool(
-      "ui_keyevent",
-      "Send a fixed Android key event.",
-      { keycode: z.number().int().min(0).max(300) },
-      async ({ keycode }) => textResult(await callPhone("ui.keyevent", { keycode })),
-    );
+  server.registerTool(
+    "ui_keyevent",
+    {
+      title: "UI key event",
+      description: "Send a fixed Android key event.",
+      inputSchema: z.object({
+        keycode: z.number().int().min(0).max(300),
+      }),
+    },
+    async ({ keycode }) =>
+      textResult(await callPhone("ui.keyevent", { keycode })),
+  );
 
-    server.tool("ui_back", "Press Android Back.", {}, async () => textResult(await callPhone("ui.back")));
-    server.tool("ui_home", "Press Android Home.", {}, async () => textResult(await callPhone("ui.home")));
-    server.tool("ui_recents", "Open Android Recents.", {}, async () => textResult(await callPhone("ui.recents")));
+  server.registerTool(
+    "ui_back",
+    {
+      title: "UI back",
+      description: "Press Android Back.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("ui.back")),
+  );
 
-    server.tool(
-      "ui_text",
-      "Enter text through the phone bridge's fixed Android text-input operation.",
-      { text: z.string().max(4096) },
-      async ({ text }) => textResult(await callPhone("ui.text", { text })),
-    );
+  server.registerTool(
+    "ui_home",
+    {
+      title: "UI home",
+      description: "Press Android Home.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("ui.home")),
+  );
 
-    server.tool(
-      "ui_dump",
-      "Dump the current Android UI hierarchy.",
-      {},
-      async () => textResult(await callPhone("ui.dump")),
-    );
+  server.registerTool(
+    "ui_recents",
+    {
+      title: "UI recents",
+      description: "Open Android Recents.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("ui.recents")),
+  );
 
-    server.tool(
-      "ui_screenshot",
-      "Capture an Android screenshot; returns metadata by default.",
-      { include_base64: z.boolean().default(false) },
-      async ({ include_base64 }) => textResult(await callPhone("ui.screenshot", { include_base64 })),
-    );
+  server.registerTool(
+    "ui_text",
+    {
+      title: "UI text",
+      description: "Enter text through the phone bridge's fixed Android text-input operation.",
+      inputSchema: z.object({
+        text: z.string().max(4096),
+      }),
+    },
+    async ({ text }) => textResult(await callPhone("ui.text", { text })),
+  );
 
-    server.tool(
-      "test_policy",
-      "Check the phone bridge policy for a command without executing it.",
-      { command: z.string().min(1).max(8192) },
-      async ({ command }) =>
-        textResult(await callPhone("policy.test", { command })),
-    );
-  },
-  {},
-  { basePath: "/api" },
-);
+  server.registerTool(
+    "ui_dump",
+    {
+      title: "UI dump",
+      description: "Dump the current Android UI hierarchy.",
+      inputSchema: z.object({}),
+    },
+    async () => textResult(await callPhone("ui.dump")),
+  );
+
+  server.registerTool(
+    "ui_screenshot",
+    {
+      title: "UI screenshot",
+      description: "Capture an Android screenshot; returns metadata by default.",
+      inputSchema: z.object({
+        include_base64: z.boolean().default(false),
+      }),
+    },
+    async ({ include_base64 }) =>
+      textResult(await callPhone("ui.screenshot", { include_base64 })),
+  );
+
+  server.registerTool(
+    "test_policy",
+    {
+      title: "Test policy",
+      description: "Check the phone bridge policy for a command without executing it.",
+      inputSchema: z.object({
+        command: z.string().min(1).max(8192),
+      }),
+    },
+    async ({ command }) =>
+      textResult(await callPhone("policy.test", { command })),
+  );
+});
 
 async function authorized(request) {
   if (!MCP_TOKEN) return false;
