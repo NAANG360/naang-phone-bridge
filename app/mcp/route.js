@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { GET as apiGet, POST as apiPost, DELETE as apiDelete } from "../api/mcp/route.js";
 
 const MCP_TOKEN = process.env.MCP_TOKEN;
