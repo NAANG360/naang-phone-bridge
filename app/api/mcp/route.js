@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { z } from "zod";
 import { createMcpHandler } from "mcp-handler";
 
