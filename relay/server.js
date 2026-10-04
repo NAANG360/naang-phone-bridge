@@ -2,455 +2,64 @@ import http from "node:http";
 import crypto from "node:crypto";
 
 const PORT = 8080;
-
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const DEVICE_TOKEN = process.env.DEVICE_TOKEN;
-
-if (!ADMIN_TOKEN || !DEVICE_TOKEN) {
-  throw new Error(
-    "ADMIN_TOKEN and DEVICE_TOKEN are required"
-  );
-}
+if (!ADMIN_TOKEN || !DEVICE_TOKEN) throw new Error("ADMIN_TOKEN and DEVICE_TOKEN are required");
 
 const devices = new Map();
 const pending = new Map();
+const ALLOWED_METHODS = new Set(["bridge.status","device.info","packages.list","process.list","system.logcat","app.launch","app.stop","app.current","ui.tap","ui.swipe","ui.keyevent","ui.back","ui.home","ui.recents","ui.text","ui.dump","ui.screenshot","fs.list","fs.read","policy.test"]);
+const allowed = m => typeof m === "string" && ALLOWED_METHODS.has(m);
+const auth = (req,t) => req.headers.authorization === "Bearer " + t;
+const json = (res,status,obj) => { const b=JSON.stringify(obj); res.writeHead(status,{"content-type":"application/json","content-length":Buffer.byteLength(b)}); res.end(b); };
+const body = req => new Promise((resolve,reject)=>{let b="";req.on("data",c=>{b+=c;if(b.length>65536)req.destroy()});req.on("end",()=>{try{resolve(b?JSON.parse(b):{})}catch{reject(new Error("invalid JSON"))}});req.on("error",reject)});
+const id = () => crypto.randomBytes(16).toString("hex");
 
-const ALLOWED_METHODS = new Set([
-  "bridge.status",
-  "device.info",
-  "packages.list",
-  "process.list",
-  "system.logcat",
-  "app.launch",
-  "app.stop",
-  "app.current",
-  "ui.tap",
-  "ui.swipe",
-  "ui.keyevent",
-  "ui.back",
-  "ui.home",
-  "ui.recents",
-  "ui.text",
-  "ui.dump",
-  "ui.screenshot",
-  "fs.list",
-  "fs.read",
-  "policy.test",
-]);
-
-const isAllowedMethod = (method) =>
-  typeof method === "string" &&
-  ALLOWED_METHODS.has(method);
-
-const json = (res, status, obj) => {
-  const body = JSON.stringify(obj);
-
-  res.writeHead(status, {
-    "content-type": "application/json",
-    "content-length": Buffer.byteLength(body),
-  });
-
-  res.end(body);
-};
-
-const auth = (req, token) =>
-  req.headers.authorization === "Bearer " + token;
-
-function id() {
-  return crypto.randomBytes(16).toString("hex");
-}
-
-function wsAccept(key) {
-  return crypto
-    .createHash("sha1")
-    .update(
-      key +
-      "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-    )
-    .digest("base64");
-}
-
-function wsFrame(payload, opcode = 1) {
-  if (!Buffer.isBuffer(payload)) {
-    payload = Buffer.from(payload);
-  }
-
-  const length = payload.length;
-
-  if (length < 126) {
-    return Buffer.concat([
-      Buffer.from([
-        0x80 | opcode,
-        length,
-      ]),
-      payload,
-    ]);
-  }
-
-  if (length < 65536) {
-    const header = Buffer.alloc(4);
-
-    header[0] = 0x80 | opcode;
-    header[1] = 126;
-    header.writeUInt16BE(length, 2);
-
-    return Buffer.concat([
-      header,
-      payload,
-    ]);
-  }
-
-  const header = Buffer.alloc(10);
-
-  header[0] = 0x80 | opcode;
-  header[1] = 127;
-  header.writeBigUInt64BE(
-    BigInt(length),
-    2,
-  );
-
-  return Buffer.concat([
-    header,
-    payload,
-  ]);
-}
-
-function wsSend(socket, value) {
-  const payload =
-    typeof value === "string"
-      ? value
-      : JSON.stringify(value);
-
-  socket.write(wsFrame(payload, 1));
-}
-
-function parseFrames(buffer) {
-  const frames = [];
-  let offset = 0;
-
-  while (buffer.length - offset >= 2) {
-    const b1 = buffer[offset];
-    const b2 = buffer[offset + 1];
-
-    const opcode = b1 & 0x0f;
-    const masked = !!(b2 & 0x80);
-
-    let length = b2 & 0x7f;
-    let headerLength = 2;
-
-    if (length === 126) {
-      if (buffer.length - offset < 4) {
-        break;
-      }
-
-      length = buffer.readUInt16BE(offset + 2);
-      headerLength = 4;
-
-    } else if (length === 127) {
-      if (buffer.length - offset < 10) {
-        break;
-      }
-
-      const bigLength =
-        buffer.readBigUInt64BE(offset + 2);
-
-      if (bigLength > BigInt(0x7fffffff)) {
-        throw new Error("websocket frame too large");
-      }
-
-      length = Number(bigLength);
-      headerLength = 10;
-    }
-
-    const maskLength = masked ? 4 : 0;
-    const frameLength =
-      headerLength +
-      maskLength +
-      length;
-
-    if (
-      buffer.length - offset <
-      frameLength
-    ) {
-      break;
-    }
-
-    let payloadStart =
-      offset + headerLength;
-
-    let mask;
-
-    if (masked) {
-      mask = buffer.subarray(
-        payloadStart,
-        payloadStart + 4,
-      );
-
-      payloadStart += 4;
-    }
-
-    let payload = buffer.subarray(
-      payloadStart,
-      payloadStart + length,
-    );
-
-    if (masked) {
-      const decoded = Buffer.alloc(length);
-
-      for (let i = 0; i < length; i++) {
-        decoded[i] =
-          payload[i] ^
-          mask[i % 4];
-      }
-
-      payload = decoded;
-    }
-
-    frames.push({
-      opcode,
-      payload,
-    });
-
-    offset += frameLength;
-  }
-
-  return {
-    frames,
-    rest: buffer.subarray(offset),
-  };
-}
-
-function sendDevice(device, request) {
-  const socket = devices.get(device);
-
-  if (!socket) {
-    throw new Error("device offline");
-  }
-
-  const requestId = id();
-
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pending.delete(requestId);
-      reject(new Error("device timeout"));
-    }, 30000);
-
-    pending.set(requestId, {
-      resolve,
-      reject,
-      timer,
-    });
-
-    wsSend(socket, {
-      ...request,
-      id: requestId,
-    });
+function state(device){let s=devices.get(device);if(!s){s={queue:[],waiters:[],online:false,lastSeen:0};devices.set(device,s)}return s}
+function sendDevice(device,request){
+  const s=devices.get(device);
+  if(!s||!s.online) throw new Error("device offline");
+  const rid=id();
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{pending.delete(rid);reject(new Error("device timeout"))},30000);
+    pending.set(rid,{resolve,timer});
+    s.queue.push({...request,id:rid});
+    if(s.waiters.length){const w=s.waiters.shift();clearTimeout(w.timer);w.resolve(s.queue.shift())}
   });
 }
 
-const server = http.createServer(
-  (req, res) => {
-    if (
-      req.method === "GET" &&
-      req.url === "/health"
-    ) {
-      return json(res, 200, {
-        ok: true,
-        devices: [...devices.keys()],
-      });
+const server=http.createServer(async(req,res)=>{
+  try{
+    if(req.method==="GET"&&req.url==="/health"){
+      return json(res,200,{ok:true,devices:[...devices].filter(([,s])=>s.online).map(([d])=>d)});
     }
-
-    if (req.method !== "POST") {
-      return json(res, 405, {
-        error: "method not allowed",
-      });
+    if(req.method==="POST"&&req.url==="/device.call"){
+      if(!auth(req,ADMIN_TOKEN))return json(res,401,{error:"unauthorized"});
+      const x=await body(req);
+      if(x.action!=="device.call"||typeof x.device!=="string"||!allowed(x.method))return json(res,400,{error:"invalid request"});
+      return json(res,200,{ok:true,result:await sendDevice(x.device,{jsonrpc:"2.0",method:x.method,params:x.params||{}})});
     }
-
-    if (!auth(req, ADMIN_TOKEN)) {
-      return json(res, 401, {
-        error: "unauthorized",
-      });
+    if(req.method==="POST"&&req.url==="/device/poll"){
+      if(!auth(req,DEVICE_TOKEN))return json(res,401,{error:"unauthorized"});
+      const x=await body(req);
+      if(typeof x.device!=="string"||!x.device)return json(res,400,{error:"invalid device"});
+      const s=state(x.device);s.online=true;s.lastSeen=Date.now();
+      if(s.queue.length)return json(res,200,s.queue.shift());
+      await new Promise(resolve=>{const timer=setTimeout(()=>{const i=s.waiters.findIndex(w=>w.resolve===resolve);if(i>=0)s.waiters.splice(i,1);resolve()},20000);s.waiters.push({resolve,timer})});
+      if(s.queue.length)return json(res,200,s.queue.shift());
+      return res.writeHead(204).end();
     }
-
-    let body = "";
-
-    req.on("data", (chunk) => {
-      body += chunk;
-
-      if (body.length > 65536) {
-        req.destroy();
-      }
-    });
-
-    req.on("end", async () => {
-      try {
-        const x = JSON.parse(body);
-
-        if (x.action === "device.call") {
-          if (
-            typeof x.device !== "string" ||
-            !isAllowedMethod(x.method)
-          ) {
-            return json(res, 400, {
-              error: "invalid request",
-            });
-          }
-
-          return json(res, 200, {
-            ok: true,
-            result: await sendDevice(
-              x.device,
-              {
-                jsonrpc: "2.0",
-                method: x.method,
-                params: x.params || {},
-              },
-            ),
-          });
-        }
-
-        return json(res, 400, {
-          error: "unknown action",
-        });
-
-      } catch (e) {
-        return json(res, 502, {
-          error: e.message,
-        });
-      }
-    });
-  },
-);
-
-server.on("upgrade", (req, socket) => {
-  const upgrade =
-    req.headers.upgrade?.toLowerCase();
-
-  const connection =
-    req.headers.connection?.toLowerCase();
-
-  const key =
-    req.headers["sec-websocket-key"];
-
-  if (
-    req.url !== "/device" ||
-    req.headers.authorization !==
-      "Bearer " + DEVICE_TOKEN ||
-    upgrade !== "websocket" ||
-    !connection?.includes("upgrade") ||
-    !key
-  ) {
-    socket.destroy();
-    return;
-  }
-
-  socket.write(
-    "HTTP/1.1 101 Switching Protocols\r\n" +
-    "Upgrade: websocket\r\n" +
-    "Connection: Upgrade\r\n" +
-    "Sec-WebSocket-Accept: " +
-    wsAccept(key) +
-    "\r\n\r\n",
-  );
-
-  let device = "";
-  let buffer = Buffer.alloc(0);
-
-  socket.on("data", (chunk) => {
-    buffer = Buffer.concat([
-      buffer,
-      chunk,
-    ]);
-
-    let parsed;
-
-    try {
-      parsed = parseFrames(buffer);
-    } catch {
-      socket.destroy();
-      return;
+    if(req.method==="POST"&&req.url==="/device/result"){
+      if(!auth(req,DEVICE_TOKEN))return json(res,401,{error:"unauthorized"});
+      const x=await body(req);
+      if(typeof x.device!=="string"||typeof x.id!=="string")return json(res,400,{error:"invalid result"});
+      const s=state(x.device);s.online=true;s.lastSeen=Date.now();
+      const p=pending.get(x.id);
+      if(p){pending.delete(x.id);clearTimeout(p.timer);p.resolve(x)}
+      return json(res,200,{ok:true});
     }
-
-    buffer = parsed.rest;
-
-    for (const frame of parsed.frames) {
-      if (frame.opcode === 9) {
-        socket.write(
-          wsFrame(frame.payload, 10),
-        );
-        continue;
-      }
-
-      if (frame.opcode === 8) {
-        socket.end();
-        continue;
-      }
-
-      if (frame.opcode !== 1) {
-        continue;
-      }
-
-      try {
-        const message = JSON.parse(
-          frame.payload.toString(),
-        );
-
-        if (message.type === "hello") {
-          device = message.device;
-
-          if (device) {
-            devices.set(device, socket);
-          }
-
-          continue;
-        }
-
-        if (
-          message.id &&
-          pending.has(message.id)
-        ) {
-          const pendingRequest =
-            pending.get(message.id);
-
-          pending.delete(message.id);
-
-          clearTimeout(
-            pendingRequest.timer,
-          );
-
-          pendingRequest.resolve(message);
-        }
-
-      } catch {
-        // Ignore malformed application messages.
-      }
-    }
-  });
-
-  socket.on("close", () => {
-    if (
-      device &&
-      devices.get(device) === socket
-    ) {
-      devices.delete(device);
-    }
-  });
-
-  socket.on("error", () => {
-    if (
-      device &&
-      devices.get(device) === socket
-    ) {
-      devices.delete(device);
-    }
-  });
+    return json(res,404,{error:"not found"});
+  }catch(e){return json(res,502,{error:e.message||"server error"})}
 });
-
-server.listen(
-  PORT,
-  () =>
-    console.log(
-      "NAANG RELAY v3 websocket listening on :" +
-      PORT,
-    ),
-);
+setInterval(()=>{const cutoff=Date.now()-45000;for(const[,s]of devices)if(s.lastSeen<cutoff)s.online=false},10000);
+server.listen(PORT,()=>console.log("NAANG RELAY HTTP polling listening on :"+PORT));
